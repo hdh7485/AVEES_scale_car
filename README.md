@@ -1,4 +1,5 @@
-# AVEES_scale_car
+# AVEES Scale Car Project
+This is Scale Car project at Kookmin University AVEES laboratory.
 ## Hardware
 ### Motors
 1. 48V DC Motor
