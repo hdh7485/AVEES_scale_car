@@ -1,0 +1,51 @@
+/*
+	SCRIPT Example 5: ex5_motor_current.scr
+	써미스터에서 측정되는 온도가 특정 값 이상이 되면 
+	모터에 흐르는 최대 전류를 제한하여 모터의 출력을 낮춤
+	테스트에 사용한 써미스터: NTC103F397F
+		0'C   -  32.600Kohm
+		10'C  -  19.885Kohm
+		20'C  -  12.489Kohm
+		30'C  -   8.058Kohm
+		40'C  -   5.329Kohm
+		50'C  -   3.606Kohm
+		60'C  -   2.492Kohm
+		70'C  -   1.756Kohm
+		80'C  -   1.260Kohm
+		90'C  -   0.920Kohm
+		100'C -   0.682Kohm
+
+	NTREX 기술연구소, 2014.1.10
+*/
+
+motor_max_current = 5;	// 최대 5A를 흘릴 수 있는 모터
+R_pull_dn = 10000;		// Pull down Resistance: 10Kohm
+threshold1 = 3606;		// 3,606ohm일 때 50도 --> 최대 전류의 75% 흘림
+threshold2 = 2492;		// 2,492ohm일 때 60도 --> 최대 전류의 50% 흘림
+threshold3 = 1756;		// 1,756ohm일 때 70도 --> 최대 전류의 25% 흘림
+multiply_prev = 0;
+
+while (1) {
+	sleep (10);
+
+	v = getv(_ai_value, 1);
+	v *= 5/4095;							// 전압으로 환산
+	R_th = R_pull_dn*(5 - v)/v;		// 써미스터 저항으로 환산
+
+	multiply = 1;
+	if      (R_th < threshold3) multiply = 0.25;
+	else if (R_th < threshold2) multiply = 0.50;
+	else if (R_th < threshold1) multiply = 0.75;
+
+	// 화면 표시를 위해 temp_value2 오브젝트에 써미스터 저항 값을 복사해 둠
+	setv (_temp_value, 2, R_th);
+	if (multiply != multiply_prev) {
+		setv (_max_current, 1, multiply*motor_max_current);
+		// 화면 표시를 위해 temp_value1 오브젝트에 최대 전류 값을 복사해 둠
+		setv (_temp_value, 1, multiply*motor_max_current*1000);	
+
+		multiply_prev = multiply;
+	}
+}
+	
+	

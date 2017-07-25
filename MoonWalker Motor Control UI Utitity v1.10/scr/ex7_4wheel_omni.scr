@@ -1,0 +1,90 @@
+/*
+	SCRIPT Example 7: ex7_4wheel_omni.scr
+	매카넘 플랫폼 로봇을 x, y-속도와 각속도로 제어하고
+	로봇의 위치(x, y, theta)를 dead-reckoning으로 추정함 
+
+	NTREX 기술연구소, 2014.1.10
+*/
+
+// 로봇의 위치
+x = 0;
+y = 0;
+th = 0;
+
+a = 0.235/2;	// 앞뒤 바퀴간 거리 / 2
+b = 0.315/2; 	// 좌우 바퀴간 거리 / 2
+ab = a+b;
+
+r = getv (_wheel_radius, 0);		// 바퀴 반지름
+// b = getv (_axle_length, 0);	
+g = getv (_gear_ratio, 0);			// 감속비
+
+vel_scale = 1;								// x, y 속도에 곱해지는 스케일, 최고 1m/s
+ang_scale = 2;								// 회전 속도에 곱해지는 스케일, 최고 2rad/s
+
+enc = getv (_encoder_ppr, 1);	// 엔코더 해상도
+enc1_p = getv (_position, 1);
+enc2_p = getv (_position, 2);
+enc3_p = getrv (2, _position, 1);
+enc4_p = getrv (2, _position, 2);
+
+met2rpm   = 60/(2*_PI)*g/r;	// 속도명령(m/s)을 RPM으로 바꾸는 scale factor
+pulse2met = 2*_PI*r/g/enc;		// 엔코더 펄스를 meter로 바꾸는 scale factor
+
+while (1) {
+	sleep (1);
+	// Pulse Input으로부터 로봇의 구동 명령을 읽음(vel_x, vel_y, vel_theta)
+	vel_x = getv(_pi_converted_value, 1);
+	vel_y = getv(_pi_converted_value, 2);
+	vel_theta = -getrv(2, _pi_converted_value, 1);
+	
+	// 구동 명령의 스케일 변환
+	vx = vel_scale*vel_x;
+	vy = vel_scale*vel_y;
+	w  = ang_scale*vel_theta;
+
+	// 전방향 로봇의 각 바퀴 속도를 계산
+	v1 = vx - vy - ab*w;
+	v2 = vx + vy + ab*w;
+	v3 = vx + vy - ab*w;
+	v4 = vx - vy + ab*w;
+
+	// 각 바퀴에 속도 명령을 내림	
+	setv (_velocity_command, 1, v1*met2rpm);
+	setv (_velocity_command, 2, v2*met2rpm);
+	setrv (2, _velocity_command, 1, v3*met2rpm);
+	setrv (2, _velocity_command, 2, v4*met2rpm);
+
+	// 네 바퀴의 엔코더 값을 읽음	
+	enc1 = getv (_position, 1);
+	enc2 = getv (_position, 2);
+	enc3 = getrv (2, _position, 1);
+	enc4 = getrv (2, _position, 2);
+
+	de1 = enc1 - enc1_p;
+	de2 = enc2 - enc2_p;
+	de3 = enc3 - enc3_p;
+	de4 = enc4 - enc4_p;
+	enc1_p = enc1;
+	enc2_p = enc2;
+	enc3_p = enc3;
+	enc4_p = enc4;
+
+	de1 *= pulse2met;
+	de2 *= pulse2met;
+	de3 *= pulse2met;
+	de4 *= pulse2met;
+
+	// 엔코더 변위를 로봇의 위치 변위 x, y, th로 변환	
+	lvx = ( de1 + de2 + de3 + de4)/4;
+	lvy = (-de1 + de2 + de3 - de4)/4;
+	lw  = (-de1 + de2 - de3 + de4)/(4*ab);
+
+	x += cos(th)*lvx - sin(th)*lvy;
+	y += sin(th)*lvx + cos(th)*lvy;
+	th+= lw;
+
+	setv (_temp_value,4,x*1000);
+	setv (_temp_value,5,y*1000);
+	setv (_temp_value,6,th*1000);
+}

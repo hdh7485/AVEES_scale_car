@@ -1,0 +1,61 @@
+/*
+	SCRIPT Example 2: ex2_homing.scr
+	홈센서를 사용하여 모터의 원점을 찾는 스크립트
+
+	NTREX 기술연구소, 2014.1.10
+*/
+
+motor_channel = 1;		// 모터 선택
+homing_direction = 1;	// 1 - 홈센서 감지 영역이 모터의 정방향에 있을 때,
+									// -1 - 홈센서 감지 영역이 모터의 역방향에 있을 때
+homing_speed = 100;		// 원점복귀 속도 (단위: RPM)
+homing_voltage = 3;		// 원점복귀 전압, 만일 homing_speed가 0일 때는 전압 구동
+
+setv (_command, motor_channel, 2);	// Clear Fault Flags
+setv (_command, motor_channel, 1);	// Motor Power ON
+
+// Digital Input 1을 Enable 한다.
+di_enable = getv (_di_enable, 0);
+setv (_di_enable, 0, di_enable | 1);
+
+// 만일, 지금 홈센서가 감지되는 영역에 있다면 홈센서를 벗어나야 한다.
+// 홈센서가 감지되지 않으면, 다음 과정으로 넘어간다.
+home_sensor  = getv(_di_value, 1);
+if (home_sensor) {
+	if (homing_speed > 0) {
+		setv (_velocity_command, motor_channel, -homing_direction*homing_speed);
+	}
+	else {
+		setv (_voltage_command, motor_channel, -homing_direction*homing_voltage);
+	}
+	
+	while (1) {
+		sleep (10);
+		home_sensor  = getv(_di_value, 1);
+		if (!home_sensor) break;
+	}
+	sleep (1000); // 홈센서를 약간 지나쳐 멈추도록 1초 지연
+	setv (_command, motor_channel, 6);	// 정지 명령
+}
+
+// 홈센서로 이동 시작
+if (homing_speed > 0) {
+	setv (_velocity_command, motor_channel, homing_direction*homing_speed);
+}
+else {
+	setv (_voltage_command, motor_channel, homing_direction*homing_voltage);
+}
+
+// 홈센서가 감지되면 정지
+while (1) {
+	sleep (10);
+	home_sensor  = getv(_di_value, 1);
+	if (home_sensor) {
+		setv (_command, motor_channel, 6);	// 정지 명령
+		break;
+	}
+}
+	
+// 홈센서가 더이상 작동하지 않도록 Digital Input 1을 Disable 한다. 
+di_enable = getv (_di_enable, 0);
+setv (_di_enable, 0, di_enable & ~1);

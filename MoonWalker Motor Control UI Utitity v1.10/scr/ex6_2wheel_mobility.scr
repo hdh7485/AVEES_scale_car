@@ -1,0 +1,65 @@
+/*
+	SCRIPT Example 6: ex6_2wheel_mobility.scr
+	차동 바퀴형 이동 로봇을 전진속도와 각속도로 제어하고
+	로봇의 위치(x, y, theta)를 dead-reckoning으로 추정함 
+
+	NTREX 기술연구소, 2014.1.10
+*/
+
+r = getv (_wheel_radius, 0);
+b = getv (_axle_length, 0);
+g = getv (_gear_ratio, 0);
+enc = getv (_encoder_ppr, 1);
+
+enc1_p = getv (_position, 1);
+enc2_p = getv (_position, 2);
+
+rps2rpm   = 60/(2*_PI);
+pulse2met = 2*_PI*r/g/enc;
+
+x = 0;
+y = 0;
+th = 0;
+
+while (1) {
+	sleep (10);
+
+	// 아래 주석을 풀면 temp_value1과 temp_vale2로부터 로봇 구동 명령을 받아들임
+	// v = getv (_temp_value,1)/1000;
+	// w = getv (_temp_value,2)/1000;
+
+	// 아래 주석을 풀면 펄스 입력 체널 1,2로부터 로봇 구동 명령을 받아들임
+	v = getv (_pi_converted_value, 1);
+	w = getv (_pi_converted_value, 2);
+
+	// 전진 속도와 각속도를 로봇의 오른쪽 바퀴와 왼쪽 바퀴의 속도로 변환
+	vl = g/r*(v - w*b/2);
+	vr = g/r*(v + w*b/2);
+
+	// 로봇의 좌우 모터에 RPM 단위의 속도 명령을 내림
+	setv (_velocity_command, 1, vl*rps2rpm);
+	setv (_velocity_command, 2, vr*rps2rpm);
+
+	// 좌우 바퀴의 엔코더 값을 읽음
+	enc1 = getv (_position, 1);
+	enc2 = getv (_position, 2);
+	de1 = enc1 - enc1_p;
+	de2 = enc2 - enc2_p;
+	enc1_p = enc1;
+	enc2_p = enc2;
+
+	de1 *= pulse2met;
+	de2 *= pulse2met;
+
+	// 엔코더 변위를 로봇의 위치 변위 x, y, th로 변환
+	s = (de2 + de1)/2;
+	a = (de2 - de1)/b;
+
+	x += s*cos(th);
+	y += s*sin(th);
+	th += a;
+
+	setv (_temp_value,4,x*1000);
+	setv (_temp_value,5,y*1000);
+	setv (_temp_value,6,th*1000);
+}

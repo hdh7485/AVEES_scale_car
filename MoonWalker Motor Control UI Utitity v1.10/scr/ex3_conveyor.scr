@@ -1,0 +1,51 @@
+/*
+	SCRIPT Example 3: ex3_conveyor.scr
+	사용자가 버튼을 눌러 컨베이어 벨트의 물건을 다른 쪽 끝으로 옮기는 간단한 스크립트 예제
+
+	NTREX 기술연구소, 2014.1.10
+*/
+
+motor_channel = 1;
+motor_voltage_out = 5;
+
+setv(_command, motor_channel, 2);	// Clear Fault Flags
+setv(_command, motor_channel, 1);	// Motor Power ON
+
+mfb_count = 0;
+mbb_count = 0;
+rls_count = 0;
+fls_count = 0;
+
+while (1) {
+	sleep (10);
+
+	move_forward_button  = getv(_di_value, 1);
+	move_backward_button = getv(_di_value, 2);
+	reverse_limit_switch = getv(_ai_value, 1);
+	forward_limit_switch = getv(_ai_value, 2);
+
+	if (move_forward_button) mfb_count++;
+	else mfb_count = 0;
+
+	if (move_backward_button) mbb_count++;
+	else mbb_count = 0;
+
+	if (reverse_limit_switch > 2047) rls_count++;		// 아날로그 원시 값 범위: 0 ~ 4095
+	else rls_count = 0;
+
+	if (forward_limit_switch > 2047) fls_count++;		// 아날로그 원시 값 범위: 0 ~ 4095
+	else fls_count = 0;
+
+	if (rls_count > 10) {	// 10ms 이상 Reverse Limit Switch 가 작동함
+		setv (_voltage_command, motor_channel, 0);
+	}
+	else if (fls_count > 10) {	// 10ms 이상 Forward Limit Switch 가 작동함
+		setv (_voltage_command, motor_channel, 0);
+	}
+	else if (mfb_count == 10) { // 10ms 이상 Move Forward Button 이 눌림
+		setv (_voltage_command, motor_channel, motor_voltage_out);
+	}
+	else if (mbb_count == 10) { // 10ms 이상 Move Backward Button 이 눌림
+		setv (_voltage_command, motor_channel, -motor_voltage_out);
+	}
+}

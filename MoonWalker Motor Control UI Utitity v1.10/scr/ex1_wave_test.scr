@@ -1,0 +1,59 @@
+/*
+	SCRIPT Example 1: ex1_wave_test.scr
+	정현파, 구형파, 삼각파, 톱니파를 만들어 모터의 전압, 전류, 속도, 위치 제어 테스트
+
+	NTREX 기술연구소, 2014.1.10
+*/
+
+motor_channel 	= 1;			// 체널 1의 모터 선택
+period        	= 5000;			// 5000ms 주기
+wave_type		= 2;			// 파형 선택
+motor_command 	= 1;			// 모터 구동 방식
+
+setv(_command, motor_channel, 2);	// Clear Fault Flags
+setv(_command, motor_channel, 1);	// Motor Power ON
+
+// 위치, 속도, 전류, 전압에 대한 진폭(amplitude) 설정
+max_position = 10000;
+max_velocity = 1000;
+max_current = 1;
+max_voltage = 6;
+
+while (1) {
+	sleep (10);
+
+	t = clock ();
+	v = 0;
+	
+	// 정현파, 구형파, 삼각파, 톱니파 중 하나 생성
+	if (wave_type == 1) { 		// Sine wave
+		v = sin(2*_PI*t/period);
+	}
+ 	else if (wave_type == 2) {  	// Square wave
+		v = sin(2*_PI*t/period);
+		if (v >= 0) v = 1;
+		else        v = -1;
+	}
+	else if (wave_type == 3) { 	// Triangle wave
+		v = 4*(t%period)/period - 2;
+		if (-1 >= v)     v = -2 - v;
+		else if (1 <= v) v = 2 - v;
+	}
+	else if (wave_type == 4) {	// Sawtooth wave
+		v = 2*(t%period)/period - 1;
+	}		
+	
+	// 모터의 전압, 전류, 속도, 위치 명령 내보냄
+	if (motor_command == 1) { 	// Voltage command
+		setv(_voltage_command, motor_channel, max_voltage*v);
+	}
+	else if (motor_command == 2) { 	// Current command
+		setv(_current_command, motor_channel, max_current*v);
+	}
+	else if (motor_command == 3) { 	// Velocity command
+		setv(_velocity_command, motor_channel, max_velocity*v);
+	}
+	else if (motor_command == 4) { 	// Position command
+		setv(_position_command, motor_channel, max_position*v);
+	}
+}
