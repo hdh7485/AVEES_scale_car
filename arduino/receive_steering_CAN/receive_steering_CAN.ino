@@ -52,9 +52,9 @@ void loop()
             Serial.print("\t");
         }
         first_byte = buf[1];
-        second_byte = buf[0];
-        
+        second_byte = buf[0];   
         steer_angle = (first_byte << 8) | second_byte;
+        
         Serial.print("angle_hex = ");
         Serial.print(steer_angle, HEX);
         Serial.print("  angle = ");

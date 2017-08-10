@@ -41,7 +41,7 @@ void loop()
     }
     
     CAN.sendMsgBuf(0x00, 0, 8, stmp);
-    delay(100);                       // send data per 100ms
+//    delay(100);                       // send data per 100ms
 }
 
 // END FILE
