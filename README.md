@@ -15,6 +15,14 @@ This is Scale Car project at Kookmin University AVEES laboratory.
 ### Sensors
 - Encoder
 - Mobis Angle Sensors (2)
+  - CAN protocol
+  - Little Endian
+
+
+  |ID|DLC|0|1|2|3|4|
+  |--|---|-|-|-|-|-|
+  |0x2B0|5|angle low byte|angle high byte|speed low byte|speed high byte|checksum|
+
 ### Arduino
 - Arudino UNO
 - Arduino CAN bus shield (2)
