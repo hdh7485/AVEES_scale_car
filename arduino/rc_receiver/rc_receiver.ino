@@ -9,7 +9,7 @@
  */
 
 //int ch1; // Here's where we'll keep our channel values
-int ch2;
+float ch1;
 int ch3;
 
 void setup() {
@@ -25,19 +25,23 @@ void setup() {
 void loop() {
 
 //  ch1 = pulseIn(5, HIGH, 25000); // Read the pulse width of
-  ch2 = pulseIn(6, HIGH, 25000); // each channel
+  ch1 = pulseIn(6, HIGH, 25000); // each channel
   ch3 = pulseIn(7, HIGH, 25000);
 //
 //  Serial.print("Channel 1:"); // Print the value of
 //  Serial.println(ch1);        // each channel
 
-  Serial.print("Channel 2:");
-  Serial.println(ch2);
+  Serial.print("Channel 1:");
+  Serial.println(ch1);
 
   Serial.print("Channel 3:");
   Serial.println(ch3);
   Serial.println(" ");
 
-  delay(1000); // I put this here just to make the terminal
+  float y = map(ch1, 1550.0, 1850.0, 0.0, 19.0);
+  y = (y > 19) ? 19 : ((y < 0) ? 0 : y);
+  Serial.println(y);
+  
+  delay(100); // I put this here just to make the terminal
   // window happier
 }
