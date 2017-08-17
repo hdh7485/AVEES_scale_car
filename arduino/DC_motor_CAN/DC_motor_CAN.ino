@@ -3,6 +3,13 @@
 
 #include <mcp_can.h>
 #include <SPI.h>
+#include <string.h>
+
+float float_value = 13;
+
+void float2Bytes(byte* bytes_temp, float float_variable) {
+  memcpy(bytes_temp, (unsigned char*) (&float_variable), 4);
+}
 
 // the cs pin of the version after v1.1 is default to D9
 // v0.9b and v1.0 is default D10
