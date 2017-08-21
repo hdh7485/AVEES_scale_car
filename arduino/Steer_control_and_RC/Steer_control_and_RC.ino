@@ -6,6 +6,11 @@ void float2Bytes(byte* bytes_temp, float float_variable) {
   memcpy(bytes_temp, (unsigned char*) (&float_variable), 4);
 }
 
+float receiver_scaler(float input, float max_value) {
+  float result = (input - 1500) / 400 * max_value;
+  result = (input > max_value) ? max_value : ((input < -max_value) ? -max_value : input);
+  return result;
+}
 // the cs pin of the version after v1.1 is default to D9
 // v0.9b and v1.0 is default D10
 const int SPI_CS_PIN = 9;
@@ -49,31 +54,59 @@ void setup() {
 }
 
 void loop() {
+  ///receive steering can msg
+  unsigned char len = 0;
+  unsigned char buf[5];
+  unsigned char first_byte = 0x0000;
+  unsigned char second_byte = 0x0000;
+
+  int steer_angle = 0x0000;
+
+  if (CAN_MSGAVAIL == CAN.checkReceive())           // check if data coming
+  {
+    CAN.readMsgBuf(&len, buf);    // read data,  len: data length, buf: data buf
+
+    unsigned int canId = CAN.getCanId();
+
+    Serial.println("-----------------------------");
+    Serial.print("Get data from ID: ");
+    Serial.println(canId, HEX);
+
+    for (int i = 0; i < len; i++) // print the data
+    {
+      Serial.print(buf[i], HEX);
+      Serial.print("\t");
+    }
+    first_byte = buf[1];
+    second_byte = buf[0];
+    steer_current = (first_byte << 8) | second_byte;
+
+    Serial.print("angle_hex = ");
+    Serial.print(steer_current, HEX);
+    Serial.print("  angle = ");
+    Serial.println(steer_current, DEC);
+
+    Serial.println();
+  }
+
   //  CAN.sendMsgBuf(0x01, 0, 8, rotate);
   ch1 = pulseIn(6, HIGH, 25000); // each channel
   ch2 = pulseIn(5, HIGH, 25000); // each channel
-  float voltage = (ch1 - 1550) / 300 * 19;
-  voltage = (voltage > 19) ? 19 : ((voltage < 0) ? 0 : voltage);
-  float steering_target = (ch2 - 1500) / 400 * 750;
-  steering_target = (steering_target > 750) ? 750 : ((steering_target < -750) ? -750 : steering_target );
-  //  if (Serial.available() > 0) {
-  //    float_value = Serial.parseFloat();
-  //  }
+
+  float voltage = receiver_scaler(ch1, 19);
+  float steering_target = receiver_scaler(ch2, 750);
+
   myPID.SetTunings(kp, ki, kd)
   myPID.Compute();
 
-  float2Bytes(motor_1_back, voltage);
-  unsigned char* total_rotate = (unsigned char*)malloc(8 * sizeof(char)); // array to hold the result
-  memcpy(total_rotate,     motor_1_front, 4 * sizeof(unsigned char)); // copy 4 floats from x to total[0]...total[3]
-  memcpy(total_rotate + 4, motor_1_back, 4 * sizeof(unsigned char)); // copy 4 floats from y to total[4]...total[7]
+ 
   //steering motor Sendmsg
   float2Bytes(motor_2_back, steering_voltage);
   unsigned char* total_rotate = (unsigned char*)malloc(8 * sizeof(char)); // array to hold the result
   memcpy(total_rotate,     motor_2_front, 4 * sizeof(unsigned char)); // copy 4 floats from x to total[0]...total[3]
   memcpy(total_rotate + 4, motor_2_back, 4 * sizeof(unsigned char)); // copy 4 floats from y to total[4]...total[7]
 
-  CAN.sendMsgBuf(0x01, 0, 8, total_rotate);
-
+//  CAN.sendMsgBuf(0x01, 0, 8, total_rotate);
   for (int i = 0; i < 8; i++) {
     Serial.print(total_rotate[i], HEX);
     Serial.print('\t');
@@ -82,6 +115,8 @@ void loop() {
 
   free(total_rotate);
   delay(10);
+
+
 }
 
 // END FILE
