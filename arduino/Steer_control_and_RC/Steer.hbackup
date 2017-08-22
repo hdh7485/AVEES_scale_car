@@ -12,7 +12,7 @@ class Steer{
 		double CANtoAngle(); 
 		double getAngle();
 		int getCAN();
-	pribate:
+	private:
 		double steerAngle;
 		unsigned char CANValue[5];
     unsigned char CANLen = 5;

@@ -4,18 +4,19 @@
 #include <mcp_can.h>
 #include <SPI.h>
 #include <string.h>
+#include <PID_v1.h>
 
 float float_value = 0;
 float ch1;
 float ch2;
-double prev_error = 0.0f;
-double error = 0.0f;
-double kp = 0.007;
+double kp = 0.01;
 double ki = 0.0;
-double kd = 0.002;
-
+double kd = 0.0;
 double steering_output, steering_target;
 int steering_current;
+double steering_double = (double)steering_current;
+
+PID myPID(&steering_double, &steering_output, &steering_target, kp, ki, kd, REVERSE);
 
 void float2Bytes(float float_variable, byte* bytes_temp) {
   memcpy(bytes_temp, (unsigned char*) (&float_variable), 4);
@@ -61,6 +62,10 @@ void setup() {
   Serial.println("CAN BUS Shield init ok!");
   //  CAN.sendMsgBuf(0x01, 0, 8, motor_1_on);
 
+  // Define PID Parameter
+  
+  myPID.SetOutputLimits(-300, 300);
+  myPID.SetMode(AUTOMATIC);
 }
 
 void loop() {
@@ -70,15 +75,28 @@ void loop() {
   unsigned char first_byte = 0x0000;
   unsigned char second_byte = 0x0000;
   int steer_angle = 0x0000;
-
+  
   if (CAN_MSGAVAIL == CAN.checkReceive())           // check if data coming
   {
     CAN.readMsgBuf(&len, buf);    // read data,  len: data length, buf: data buf
     unsigned int canId = CAN.getCanId();
+    Serial.println("-----------------------------");
+    Serial.print("Get data from ID: ");
+    Serial.println(canId, HEX);
+    for (int i = 0; i < len; i++) // print the data
+    {
+      Serial.print(buf[i], HEX);
+      Serial.print("\t");
+    }
     first_byte = buf[1];
     second_byte = buf[0];
     steering_current = (first_byte << 8) | second_byte;
-    steering_current *= -1;
+    Serial.print("angle_hex = ");
+    Serial.print(steering_current, HEX);
+    Serial.print("  angle = ");
+    Serial.println(steering_current, DEC);
+    Serial.println();
+    steering_double = (double)steering_current;
   }
 
 
@@ -88,40 +106,44 @@ void loop() {
   float voltage = receiver_scaler(ch1, 19, 1550, 300);
   float steering_target = receiver_scaler(ch2, 710, 1500, 400);
 
-  error = (steering_target - (double)steering_current);
-  steering_output = error * kp + (error - prev_error) * kd;
+  //    PID computing
+  myPID.Compute();
+
+
+  //    Display PID OUTPUT
+  Serial.print("PID Gain and Output");
+  Serial.print(kp);
+  Serial.print(' ');
+  Serial.print(ki);
+  Serial.print(' ');
+  Serial.print(steering_output);
+  Serial.print('\n');
+  Serial.print("Steering_target: ");
+  Serial.println(steering_target);
+
+  // PID gain Scaling
 
 
   ///////////////////////////
-  if (steering_output < 0)
-    steering_output *= 2.1;
-    
-  if (steering_output > 5) {
-    steering_output = 5;
-  }
-  else if (steering_output < -12) {
-    steering_output = -12;
-  }
 
-  float2Bytes(steering_output, motor_2_back);
+
+
+  float steering_voltage;
+  float2Bytes(steering_voltage, motor_2_back);
   unsigned char* total_rotate = (unsigned char*)malloc(8 * sizeof(char)); // array to hold the result
   memcpy(total_rotate,     motor_2_front, 4 * sizeof(unsigned char)); // copy 4 floats from x to total[0]...total[3]
   memcpy(total_rotate + 4, motor_2_back, 4 * sizeof(unsigned char)); // copy 4 floats from y to total[4]...total[7]
   //steering motor Sendmsg
-  CAN.sendMsgBuf(0x01, 0, 8, total_rotate);
-
+  //  CAN.sendMsgBuf(0x01, 0, 8, total_rotate);
+//
+  for (int i = 0; i < 8; i++) {
+    Serial.print(total_rotate[i], HEX);
+    Serial.print('\t');
+  }
   Serial.print('\n');
-  Serial.print("Steering_target: ");
-  Serial.print(steering_target);
-  Serial.print('\n');
-  Serial.print("Steering_current: ");
-  Serial.print(steering_current);
-  Serial.print('\n');
-  Serial.print("Steering_output: ");
-  Serial.println(steering_output);
 
   free(total_rotate);
-  prev_error = error;
+  delay(10);
 }
 
 // END FILE
