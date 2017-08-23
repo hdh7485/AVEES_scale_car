@@ -11,6 +11,7 @@ This is Scale Car project at Kookmin University AVEES laboratory.
 ### Motors
 - 48V DC Motor
 - 24V DC Motor
+  - my1020zxfh-450w-24v
 - 24V Step Motor
 ### Sensors
 - Encoder
