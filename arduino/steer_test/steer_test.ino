@@ -5,8 +5,9 @@
 #include <SPI.h>
 #include <string.h>
 
-#define PRINT_STEER_DATA  1
-#define PRINT_RECEIVER    0
+#define PRINT_STEER_DATA    0
+#define PRINT_RECEIVER      0
+#define PRINT_MOTOR_TX_CAN  0
 
 float float_value = 0;
 float ch1;
@@ -19,12 +20,15 @@ double kp = 0.007;
 double ki = 0.0;
 double kd = 0.002;
 
-double steering_output, steering_target;
+float steering_output = 0.0f;
+double steering_target;
 int steering_current;
+unsigned char steeringVelocity = 0;
 
 void float2Bytes(float float_variable, byte* bytes_temp);
 float receiver_scaler(float input, float max_value, float middle_value, float width);
 int getAngleSignal();
+unsigned char getAngularVelocitySignal();
 int getRemoteSignal(int pinNumber);
 float voltScaler(float input);
 float LPFilter(float input, float pre_result);
@@ -32,7 +36,6 @@ float LPFilter(float input, float pre_result);
 // the cs pin of the version after v1.1 is default to D9
 // v0.9b and v1.0 is default D10
 const int SPI_CS_PIN = 9;
-
 MCP_CAN CAN(SPI_CS_PIN);                                    // Set CS pin
 
 //    Motor Command Part
@@ -53,34 +56,47 @@ void setup() {
   Serial.begin(9600);
   pinMode(5, INPUT);
   pinMode(6, INPUT);
-  int CANStart = CAN.begin(CAN_500KBPS);
-  if (!CANStart)
-    Serial.println("CAN BUS Shield init ok!");
-  else
-    Serial.println("CAN FAIL");
+  int a = CAN.begin(CAN_500KBPS);
+  if (!a) {
+    Serial.println("Success");
+  }
 }
 
 void loop() {
-  steering_current = getAngleSignal();
+  unsigned char c = getAngularVelocitySignal();
+  if(c != 0)
+    steeringVelocity = c;
 
-  ch1 = getRemoteSignal(6);
-  ch2 = getRemoteSignal(5);
+  if (Serial.available() > 0) {
+    steering_output = Serial.parseFloat();
+  }
 
-  ch1Filter = LPFilter(ch1, ch1Filter, 3, 1);
-  ch2Filter = LPFilter(ch2, ch2Filter, 3, 1);
+  Serial.print(c, DEC);
+  Serial.print('\t');
+  Serial.print(steeringVelocity, DEC);
+  Serial.print('\t');
+  Serial.println(steering_output);
 
-  float voltage = receiver_scaler(ch1Filter, 19, 1550, 300);
-  float steering_target = receiver_scaler(ch2Filter, 710, 1500, 400);
-
-  error = (steering_target - (double)steering_current);
-  steering_output = error * kp + (error - prev_error) * kd;
-
-  float2Bytes(steering_output, motor_2_back);
-  unsigned char* total_rotate = (unsigned char*)malloc(8 * sizeof(char)); // array to hold the result
+  //  float2Bytes(steering_output, motor_2_back);
+  memcpy(motor_2_back, (unsigned char*) (&steering_output), sizeof(motor_2_back));
+  unsigned char total_rotate[8] = {0,};
   memcpy(total_rotate,     motor_2_front, 4 * sizeof(unsigned char)); // copy 4 floats from x to total[0]...total[3]
   memcpy(total_rotate + 4, motor_2_back, 4 * sizeof(unsigned char)); // copy 4 floats from y to total[4]...total[7]
-  //steering motor Sendmsg
-  //  CAN.sendMsgBuf(0x01, 0, 8, total_rotate);
+  CAN.sendMsgBuf(0x01, 0, 8, total_rotate);
+
+#if PRINT_MOTOR_TX_CAN == 1
+  for (int i = 0; i < 4; i++) {
+    Serial.print(motor_2_front[i], HEX);
+    Serial.print('\t');
+  }
+  Serial.print('\n');
+
+  for (int i = 0; i < 8; i++) {
+    Serial.print(total_rotate[i], HEX);
+    Serial.print('\t');
+  }
+  Serial.print('\n');
+#endif
 
 #if PRINT_RECEIVER == 1
   Serial.print("ch1: ");
@@ -101,9 +117,6 @@ void loop() {
   Serial.print("\tSteering_output: ");
   Serial.println(steering_output);
 #endif
-
-  free(total_rotate);
-  prev_error = error;
 }
 
 int getRemoteSignal(int pinNumber) {
@@ -137,6 +150,20 @@ int getAngleSignal() {
     steering_angle *= -1;
   }
   return steering_angle;
+}
+
+unsigned char getAngularVelocitySignal() {
+  unsigned char len = 0;
+  unsigned char buf[5];
+  unsigned char first_byte = 0x0000;
+  int angularVelocity;
+  if (CAN_MSGAVAIL == CAN.checkReceive()) { // check if data coming
+    CAN.readMsgBuf(&len, buf);    // read data,  len: data length, buf: data buf
+    unsigned int canId = CAN.getCanId();
+    first_byte = buf[2];
+    angularVelocity = first_byte;
+  }
+  return angularVelocity;
 }
 
 float voltScaler(float input) {

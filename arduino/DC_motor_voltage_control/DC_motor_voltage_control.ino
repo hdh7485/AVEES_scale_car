@@ -48,14 +48,14 @@ void setup() {
 void loop() {
   //  CAN.sendMsgBuf(0x01, 0, 8, rotate);
   ch1 = pulseIn(6, HIGH, 25000); // each channel
-  float voltage = map(ch1, 1550.0, 1850.0, 0.0, 19.0);
-  voltage = (voltage > 19) ? 19 : ((voltage < 0) ? 0 : voltage);
+//  float voltage = map(ch1, 1550.0, 1850.0, 0.0, 19.0);
+//  voltage = (voltage > 19) ? 19 : ((voltage < 0) ? 0 : voltage);
   
-//  if (Serial.available() > 0) {
-//    float_value = Serial.parseFloat();
-//  }
+  if (Serial.available() > 0) {
+    float_value = Serial.parseFloat();
+  }
 
-  float2Bytes(motor_1_back, voltage);
+  float2Bytes(motor_1_back, float_value);
   unsigned char* total_rotate = (unsigned char*)malloc(8 * sizeof(char)); // array to hold the result
   memcpy(total_rotate,     motor_1_front, 4 * sizeof(unsigned char)); // copy 4 floats from x to total[0]...total[3]
   memcpy(total_rotate + 4, motor_1_back, 4 * sizeof(unsigned char)); // copy 4 floats from y to total[4]...total[7]
