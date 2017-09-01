@@ -15,9 +15,9 @@ float ch1Filter = 0.0f;
 float ch2Filter = 0.0f;
 double prev_error = 0.0f;
 double error = 0.0f;
-double kp = 0.007;
+double kp = 0.0007;
 double ki = 0.0;
-double kd = 0.002;
+double kd = 0.0045;
 
 double steering_output, steering_target;
 int steering_current;
@@ -27,7 +27,7 @@ float receiver_scaler(float input, float max_value, float middle_value, float wi
 void getAngleSignal();
 int getMotorSignal();
 int getRemoteSignal(int pinNumber);
-float voltScaler(float input);
+float voltScaler(float input, float inputMin, float inputMax, float outputMin, float outputMax);
 float LPFilter(float input, float pre_result);
 
 unsigned char total_rotate[8] = {0,};
@@ -45,6 +45,8 @@ unsigned char st[8] =          {0x1C, 0x72, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00};
 unsigned char motor_2_on[8] =  {0x14, 0x65, 0x00, 0x02, 0x01, 0x00, 0x00, 0x00};// steering motor on command
 unsigned char motor_2_off[8] = {0x14, 0x65, 0x00, 0x02, 0x00, 0x00, 0x00, 0x00};
 unsigned char motor_2_quick_stop[6] = {0x14, 0x65, 0x00, 0x02, 0x00, 0x07};
+
+float voltage;
 
 int statement_flag = 1;
 //0: motor power on
@@ -76,48 +78,50 @@ void loop() {
   ch1Filter = LPFilter(ch1, ch1Filter, 1, 1);
   ch2Filter = LPFilter(ch2, ch2Filter, 1, 1);
 
-  float voltage = receiver_scaler(ch1Filter, 19, 1550, 300);
-  float steering_target = receiver_scaler(ch2Filter, 710, 1500, 400);
+  voltage = receiver_scaler(ch1Filter, 19, 1550, 300);
+  steering_target = receiver_scaler(ch2Filter, 600, 1500, 400);
 
   error = (steering_target - (double)steering_current);
+
+  steering_output = error * kp + (error - prev_error) * kd;
+  if (steering_output > 0) {
+    steering_output = voltScaler(steering_output, 0, 12, 3.1, 5);
+  }
+  else {
+    steering_output = voltScaler(steering_output, -12, 0, -11.00, -9.2);
+  }
+
   //  Serial.print("Target: ");
-  ;
-    Serial.print((int)steering_target);
-    Serial.print(',');
+  Serial.print((int)steering_target);
+  Serial.print(',');
+
   //  Serial.print(" CurrentAngle: ");
-    Serial.print(steering_current);
-    Serial.print('.');
+  Serial.print(steering_current);
+  Serial.print(',');
+
+  Serial.print(steering_output * 10);
+  Serial.print(';');
   //  Serial.print(" Error: ");
-//  Serial.println(error);
+  //  Serial.println(error);
 
-    steering_output = error * kp + (error - prev_error) * kd;
-    if(steering_output>0)
-    {
-      steering_output=map(steering_output,0,5,3.2,5);
-      }
-      else
-      {
-         steering_output=map(steering_output,0,-12,-9.55,-11.25);
-      }
-    
-    
+  //  if (error > 90) {
+  //    steering_output = 3.20;
+  //  }
+  //  else if (error < -90) {
+  //    steering_output = -9.3;
+  //  }
+  //  else {
+  //    steering_output = 0;
+  //  }
 
-//  if (error > 90) {
-//    steering_output = 3.20;
-//  }
-//  else if (error < -90) {
-//    steering_output = -9.3;
-//  }
-//  else {
-//    steering_output = 0;
-//  }
-
+  if (abs(error) < 25) {
+    steering_output = 0;
+  }
 
   float2Bytes(steering_output, motor_2_back);
   memcpy(total_rotate,     motor_2_front, 4 * sizeof(unsigned char)); // copy 4 floats from x to total[0]...total[3]
   memcpy(total_rotate + 4, motor_2_back, 4 * sizeof(unsigned char)); // copy 4 floats from y to total[4]...total[7]
   //steering motor Sendmsg
-
   CAN.sendMsgBuf(0x01, 0, 8, total_rotate);
   //  getMotorSignal();
 #if PRINT_RECEIVER == 1
@@ -168,7 +172,6 @@ void getAngleSignal() {
   {
     CAN.readMsgBuf(&len, buf);    // read data,  len: data length, buf: data buf
     unsigned char canId = CAN.getCanId();
-
     if (canId == 176) {
       first_byte = buf[1];
       second_byte = buf[0];
@@ -197,18 +200,24 @@ int getMotorSignal() {
   }
 }
 
-float voltScaler(float input) {
-  float steering_output = input;
-  if (steering_output < 0)
-    steering_output = input * 2.1;
+float voltScaler(float input, float inputMin, float inputMax, float outputMin, float outputMax) {
+  float output;
+  if (input < inputMin) {
+    input = inputMin;
+  }
+  else if (input > inputMax) {
+    input = inputMax;
+  }
 
-  if (steering_output > 5) {
-    steering_output = 5;
+  output = (input - inputMin) * (outputMax - outputMin) / (inputMax - inputMin) + outputMin;
+
+  if (output < outputMin) {
+    output = outputMin;
   }
-  else if (steering_output < -12) {
-    steering_output = -12;
+  else if (output > outputMax) {
+    output = outputMax;
   }
-  return steering_output;
+  return output;
 }
 
 float LPFilter(float input, float pre_result, float tau, float ts) {

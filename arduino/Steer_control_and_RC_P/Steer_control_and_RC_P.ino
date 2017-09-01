@@ -15,7 +15,7 @@ float ch1Filter = 0.0f;
 float ch2Filter = 0.0f;
 double prev_error = 0.0f;
 double error = 0.0f;
-double kp = 0.007;
+double kp = 0.01;
 double ki = 0.0;
 double kd = 0.002;
 
@@ -45,6 +45,8 @@ unsigned char st[8] =          {0x1C, 0x72, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00};
 unsigned char motor_2_on[8] =  {0x14, 0x65, 0x00, 0x02, 0x01, 0x00, 0x00, 0x00};// steering motor on command
 unsigned char motor_2_off[8] = {0x14, 0x65, 0x00, 0x02, 0x00, 0x00, 0x00, 0x00};
 unsigned char motor_2_quick_stop[6] = {0x14, 0x65, 0x00, 0x02, 0x00, 0x07};
+
+float voltage;
 
 int statement_flag = 1;
 //0: motor power on
@@ -76,41 +78,43 @@ void loop() {
   ch1Filter = LPFilter(ch1, ch1Filter, 1, 1);
   ch2Filter = LPFilter(ch2, ch2Filter, 1, 1);
 
-  float voltage = receiver_scaler(ch1Filter, 19, 1550, 300);
-  float steering_target = receiver_scaler(ch2Filter, 710, 1500, 400);
+  voltage = receiver_scaler(ch1Filter, 19, 1550, 300);
+  steering_target = receiver_scaler(ch2Filter, 710, 1500, 400);
 
   error = (steering_target - (double)steering_current);
+
+  steering_output = error * kp + (error - prev_error) * kd;
+  if (steering_output > 0)
+  {
+    steering_output = map(steering_output, 0, 12, 3.3, 5);
+  }
+  else
+  {
+    steering_output = map(steering_output, 0, -12, -9.50, -11.00);
+  }
+  
   //  Serial.print("Target: ");
-  ;
-    Serial.print((int)steering_target);
-    Serial.print(',');
+  Serial.print((int)steering_target);
+  Serial.print(',');
+
   //  Serial.print(" CurrentAngle: ");
-    Serial.print(steering_current);
-    Serial.print('.');
+  Serial.print(steering_current);
+  Serial.print(',');
+
+  Serial.print((int)steering_output);
+  Serial.print('.');
   //  Serial.print(" Error: ");
-//  Serial.println(error);
+  //  Serial.println(error);
 
-    steering_output = error * kp + (error - prev_error) * kd;
-    if(steering_output>0)
-    {
-      steering_output=map(steering_output,0,5,3.2,5);
-      }
-      else
-      {
-         steering_output=map(steering_output,0,-12,-9.55,-11.25);
-      }
-    
-    
-
-//  if (error > 90) {
-//    steering_output = 3.20;
-//  }
-//  else if (error < -90) {
-//    steering_output = -9.3;
-//  }
-//  else {
-//    steering_output = 0;
-//  }
+  //  if (error > 90) {
+  //    steering_output = 3.20;
+  //  }
+  //  else if (error < -90) {
+  //    steering_output = -9.3;
+  //  }
+  //  else {
+  //    steering_output = 0;
+  //  }
 
 
   float2Bytes(steering_output, motor_2_back);
@@ -197,7 +201,7 @@ int getMotorSignal() {
   }
 }
 
-float voltScaler(float input) {
+float voltScaler(float input, float inputMin, float inputMax, float outputMin, float outputMax) {
   float steering_output = input;
   if (steering_output < 0)
     steering_output = input * 2.1;
