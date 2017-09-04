@@ -40,6 +40,8 @@ const int SPI_CS_PIN = 9;
 MCP_CAN CAN(SPI_CS_PIN);                                    // Set CS pin
 
 //    Motor Command Part
+unsigned char motor_1_front[4] = {0x1C, 0x72, 0x00, 0x01}; // Select Motor
+unsigned char motor_1_back[4] = {0x00, 0x00, 0x00, 0x00}; // Command to control Motor
 unsigned char motor_2_front[4] = {0x1C, 0x72, 0x00, 0x02}; // Select Motor
 unsigned char motor_2_back[4] = {0x00, 0x00, 0x00, 0x00}; // Command to control Motor
 unsigned char rotate[8] =      {0x1C, 0x72, 0x00, 0x01, 0x00, 0x00, 0x50, 0x41};
@@ -76,15 +78,17 @@ void loop() {
 
   ch1 = getRemoteSignal(6);
   ch1Filter = LPFilter(ch1, ch1Filter, 1, 1);
-  rearVoltage = receiverScaler(ch1Filter, 19, 1550, 300);
+  if (ch1Filter < 100) {rearVoltage = 0;}
+  else {rearVoltage = receiverScaler(ch1Filter, 19, 1550, 300);}
   float2Bytes(rearVoltage, motor_1_back);
   memcpy(total_rotate,     motor_1_front, 4 * sizeof(unsigned char)); // copy 4 floats from x to total[0]...total[3]
   memcpy(total_rotate + 4, motor_1_back, 4 * sizeof(unsigned char)); // copy 4 floats from y to total[4]...total[7]
   CAN.sendMsgBuf(0x01, 0, 8, total_rotate);
-  
+
   ch2 = getRemoteSignal(5);
   ch2Filter = LPFilter(ch2, ch2Filter, 1, 1);
-  steeringTarget = receiverScaler(ch2Filter, 600, 1500, 400);
+  if (ch2Filter < 100) {steeringTarget = 0;}
+  else {steeringTarget = receiverScaler(ch2Filter, 600, 1500, 400);}
   error = (steeringTarget - (double)steeringCurrent);
   steeringOutput = error * kp + (error - prev_error) * kd;
   if (steeringOutput > 0) {
@@ -132,7 +136,8 @@ int getRemoteSignal(int pinNumber) {
 }
 
 float receiverScaler(float input, float max_value, float middle_value, float width) {
-  float result = (input - middle_value) / width * max_value;
+  float result;
+  result = (input - middle_value) / width * max_value;
   result = (result > max_value) ? max_value : ((result < -max_value) ? -max_value : result);
   return result;
 }
