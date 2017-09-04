@@ -19,11 +19,12 @@ double kp = 0.0007;
 double ki = 0.0;
 double kd = 0.0045;
 
-double steering_output, steering_target;
-int steering_current;
+double steeringOutput;
+double steeringTarget;
+int steeringCurrent;
 
 void float2Bytes(float float_variable, byte* bytes_temp);
-float receiver_scaler(float input, float max_value, float middle_value, float width);
+float receiverScaler(float input, float max_value, float middle_value, float width);
 void getAngleSignal();
 int getMotorSignal();
 int getRemoteSignal(int pinNumber);
@@ -47,7 +48,7 @@ unsigned char motor_2_on[8] =  {0x14, 0x65, 0x00, 0x02, 0x01, 0x00, 0x00, 0x00};
 unsigned char motor_2_off[8] = {0x14, 0x65, 0x00, 0x02, 0x00, 0x00, 0x00, 0x00};
 unsigned char motor_2_quick_stop[6] = {0x14, 0x65, 0x00, 0x02, 0x00, 0x07};
 
-float voltage;
+float rearVoltage;
 
 int statement_flag = 1;
 //0: motor power on
@@ -74,31 +75,33 @@ void loop() {
   getAngleSignal();
 
   ch1 = getRemoteSignal(6);
-  ch2 = getRemoteSignal(5);
-
   ch1Filter = LPFilter(ch1, ch1Filter, 1, 1);
+  rearVoltage = receiverScaler(ch1Filter, 19, 1550, 300);
+  float2Bytes(rearVoltage, motor_1_back);
+  memcpy(total_rotate,     motor_1_front, 4 * sizeof(unsigned char)); // copy 4 floats from x to total[0]...total[3]
+  memcpy(total_rotate + 4, motor_1_back, 4 * sizeof(unsigned char)); // copy 4 floats from y to total[4]...total[7]
+  CAN.sendMsgBuf(0x01, 0, 8, total_rotate);
+  
+  ch2 = getRemoteSignal(5);
   ch2Filter = LPFilter(ch2, ch2Filter, 1, 1);
-
-  voltage = receiver_scaler(ch1Filter, 19, 1550, 300);
-  steering_target = receiver_scaler(ch2Filter, 600, 1500, 400);
-
-  error = (steering_target - (double)steering_current);
-
-  steering_output = error * kp + (error - prev_error) * kd;
-  if (steering_output > 0) {steering_output = voltScaler(steering_output, 0, 12, 3.1, 5);}
-  else {steering_output = voltScaler(steering_output, -12, 0, -11.00, -9.2);}
-
+  steeringTarget = receiverScaler(ch2Filter, 600, 1500, 400);
+  error = (steeringTarget - (double)steeringCurrent);
+  steeringOutput = error * kp + (error - prev_error) * kd;
+  if (steeringOutput > 0) {
+    steeringOutput = voltScaler(steeringOutput, 0, 12, 3.1, 5);
+  }
+  else {
+    steeringOutput = voltScaler(steeringOutput, -12, 0, -11.00, -9.2);
+  }
   sendProcessing();
-
-  if (abs(error) < 25) {steering_output = 0;}
-
-  float2Bytes(steering_output, motor_2_back);
+  if (abs(error) < 25) {
+    steeringOutput = 0;
+  }
+  float2Bytes(steeringOutput, motor_2_back);
   memcpy(total_rotate,     motor_2_front, 4 * sizeof(unsigned char)); // copy 4 floats from x to total[0]...total[3]
   memcpy(total_rotate + 4, motor_2_back, 4 * sizeof(unsigned char)); // copy 4 floats from y to total[4]...total[7]
-  
   CAN.sendMsgBuf(0x01, 0, 8, total_rotate);
-  //  getMotorSignal();
-  
+
 #if PRINT_RECEIVER == 1
   Serial.print("ch1: ");
   Serial.print(ch1);
@@ -112,22 +115,23 @@ void loop() {
 
 #if PRINT_STEER_DATA == 1
   Serial.print("Steering_target: ");
-  Serial.print(steering_target);
+  Serial.print(steeringTarget);
   Serial.print(" \tSteering_current: ");
-  Serial.print(steering_current);
+  Serial.print(steeringCurrent);
   Serial.print("\tSteering_output: ");
-  Serial.println(steering_output);
+  Serial.println(steeringOutput);
 #endif
 
   prev_error = error;
 }
+//END LOOP
 
 int getRemoteSignal(int pinNumber) {
   int pwmData = pulseIn(pinNumber, HIGH, 25000); // each channel
   return pwmData;
 }
 
-float receiver_scaler(float input, float max_value, float middle_value, float width) {
+float receiverScaler(float input, float max_value, float middle_value, float width) {
   float result = (input - middle_value) / width * max_value;
   result = (result > max_value) ? max_value : ((result < -max_value) ? -max_value : result);
   return result;
@@ -140,28 +144,24 @@ void float2Bytes(float float_variable, byte* bytes_temp) {
 void getAngleSignal() {
   unsigned char len = 0;
   unsigned char buf[5];
-  unsigned char first_byte = 0x0000;
-  unsigned char second_byte = 0x0000;
-
+  unsigned char firstByte = 0x0000;
+  unsigned char secondByte = 0x0000;
   if (CAN_MSGAVAIL == CAN.checkReceive())           // check if data coming
   {
     CAN.readMsgBuf(&len, buf);    // read data,  len: data length, buf: data buf
     unsigned char canId = CAN.getCanId();
-    if (canId == 176) {
-      first_byte = buf[1];
-      second_byte = buf[0];
-      steering_current = (first_byte << 8) | second_byte;
-      steering_current *= -1;
-    }
+    firstByte = buf[1];
+    secondByte = buf[0];
+    steeringCurrent = (firstByte << 8) | secondByte;
+    steeringCurrent *= -1;
   }
 }
 
 int getMotorSignal() {
   unsigned char len = 0;
   unsigned char buf[8];
-  unsigned char first_byte = 0x0000;
-  unsigned char second_byte = 0x0000;
-  int steering_angle;
+  unsigned char firstByte = 0x0000;
+  unsigned char secondByte = 0x0000;
   if (CAN_MSGAVAIL == CAN.checkReceive())           // check if data coming
   {
     CAN.readMsgBuf(&len, buf);    // read data,  len: data length, buf: data buf
@@ -198,12 +198,12 @@ float LPFilter(float input, float pre_result, float tau, float ts) {
   return y;
 }
 
-void sendProcessing(){
-  Serial.print((int)steering_target);
+void sendProcessing() {
+  Serial.print((int)steeringTarget);
   Serial.print(',');
-  Serial.print(steering_current);
+  Serial.print(steeringCurrent);
   Serial.print(',');
-  Serial.print(steering_output * 10);
+  Serial.print(steeringOutput * 10);
   Serial.print(';');
 }
 // END FILE
