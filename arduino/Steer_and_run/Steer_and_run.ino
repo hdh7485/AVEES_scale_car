@@ -32,6 +32,9 @@ float voltScaler(float input, float inputMin, float inputMax, float outputMin, f
 float LPFilter(float input, float pre_result);
 void sendProcessing();
 
+int startTime = 0;
+int endTime = 0;
+
 unsigned char total_rotate[8] = {0,};
 // the cs pin of the version after v1.1 is default to D9
 // v0.9b and v1.0 is default D10
@@ -61,6 +64,7 @@ void setup() {
   Serial.begin(9600);
   pinMode(5, INPUT);
   pinMode(6, INPUT);
+  pinMode(12, OUTPUT);
   int CANStart = CAN.begin(CAN_500KBPS);
   if (!CANStart)
     Serial.println("CAN BUS Shield init ok!");
@@ -74,21 +78,39 @@ void setup() {
 }
 
 void loop() {
-  getAngleSignal();
+  digitalWrite(12, HIGH);
+  delay(100);
+  digitalWrite(12, LOW);
+  startTime = millis();
 
+  digitalWrite(12, HIGH);
+  getAngleSignal();
+  digitalWrite(12, LOW);
+  
   ch1 = getRemoteSignal(6);
   ch1Filter = LPFilter(ch1, ch1Filter, 1, 1);
-  if (ch1Filter < 100) {rearVoltage = 0;}
-  else {rearVoltage = receiverScaler(ch1Filter, 19, 1550, 300);}
+
+  if (ch1Filter < 100) {
+    rearVoltage = 0;
+  }
+  else {
+    rearVoltage = receiverScaler(ch1Filter, 19, 1500, 300);
+  }
   float2Bytes(rearVoltage, motor_1_back);
   memcpy(total_rotate,     motor_1_front, 4 * sizeof(unsigned char)); // copy 4 floats from x to total[0]...total[3]
   memcpy(total_rotate + 4, motor_1_back, 4 * sizeof(unsigned char)); // copy 4 floats from y to total[4]...total[7]
+  digitalWrite(12, HIGH);
   CAN.sendMsgBuf(0x01, 0, 8, total_rotate);
+  digitalWrite(12, LOW);
 
   ch2 = getRemoteSignal(5);
   ch2Filter = LPFilter(ch2, ch2Filter, 1, 1);
-  if (ch2Filter < 100) {steeringTarget = 0;}
-  else {steeringTarget = receiverScaler(ch2Filter, 600, 1500, 400);}
+  if (ch2Filter < 100) {
+    steeringTarget = 0;
+  }
+  else {
+    steeringTarget = receiverScaler(ch2Filter, 600, 1500, 400);
+  }
   error = (steeringTarget - (double)steeringCurrent);
   steeringOutput = error * kp + (error - prev_error) * kd;
   if (steeringOutput > 0) {
@@ -127,6 +149,10 @@ void loop() {
 #endif
 
   prev_error = error;
+
+  endTime = millis();
+  Serial.println(' ');
+  Serial.println(startTime - endTime);
 }
 //END LOOP
 
