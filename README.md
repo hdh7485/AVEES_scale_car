@@ -15,7 +15,8 @@ This is Scale Car project at Kookmin University AVEES laboratory.
 - 24V Step Motor
 ### Sensors
 - Encoder
-- Mobis Angle Sensors (2)
+- Mobis Angle Sensors (SAS) (2)
+  - <https://www.bourns.com/docs/automotive/datasheets/non-contact-multiturn-angle-sensor-type-6000.pdf?sfvrsn=12>
   - CAN protocol
   - Little Endian
   
