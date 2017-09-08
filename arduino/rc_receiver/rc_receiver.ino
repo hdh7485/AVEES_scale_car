@@ -11,6 +11,8 @@
 //int ch1; // Here's where we'll keep our channel values
 int ch1;
 int ch3;
+long startTime = 0;
+long endTime = 0;
 
 void setup() {
 
@@ -25,9 +27,12 @@ void setup() {
 void loop() {
 
 //  ch1 = pulseIn(5, HIGH, 25000); // Read the pulse width of
-  ch1 = pulseIn(6, HIGH, 25000); // each channel
-  ch3 = pulseIn(5, HIGH, 25000);
-//
+  startTime = millis();
+  ch1 = pulseIn(6, HIGH, 8000); // each channel
+  ch3 = pulseIn(5, HIGH, 8000);
+  endTime = millis();
+  Serial.print("micros:");
+  Serial.println(endTime - startTime);
 //  Serial.print("Channel 1:"); // Print the value of
 //  Serial.println(ch1);        // each channel
 

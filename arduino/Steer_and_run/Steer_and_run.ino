@@ -7,6 +7,7 @@
 
 #define PRINT_STEER_DATA  0
 #define PRINT_RECEIVER    0
+#define PROCESSING_ON 0
 
 float float_value = 0;
 float ch1;
@@ -32,8 +33,12 @@ float voltScaler(float input, float inputMin, float inputMax, float outputMin, f
 float LPFilter(float input, float pre_result);
 void sendProcessing();
 
-int startTime = 0;
-int endTime = 0;
+long int totalStartTime = 0;
+long int totalEndTime = 0;
+long int startTime = 0;
+long int endTime = 0;
+long int inTime = 0;
+long int outTime = 0;
 
 unsigned char total_rotate[8] = {0,};
 // the cs pin of the version after v1.1 is default to D9
@@ -78,16 +83,18 @@ void setup() {
 }
 
 void loop() {
-  digitalWrite(12, HIGH);
-  delay(100);
-  digitalWrite(12, LOW);
-  startTime = millis();
+  totalStartTime = micros();
 
-  digitalWrite(12, HIGH);
+  startTime = micros();
+
   getAngleSignal();
-  digitalWrite(12, LOW);
-  
+
+  inTime = micros();
   ch1 = getRemoteSignal(6);
+  outTime = micros();
+  Serial.print("float2Byte: ");
+  Serial.println(outTime - inTime);
+  
   ch1Filter = LPFilter(ch1, ch1Filter, 1, 1);
 
   if (ch1Filter < 100) {
@@ -99,10 +106,14 @@ void loop() {
   float2Bytes(rearVoltage, motor_1_back);
   memcpy(total_rotate,     motor_1_front, 4 * sizeof(unsigned char)); // copy 4 floats from x to total[0]...total[3]
   memcpy(total_rotate + 4, motor_1_back, 4 * sizeof(unsigned char)); // copy 4 floats from y to total[4]...total[7]
-  digitalWrite(12, HIGH);
   CAN.sendMsgBuf(0x01, 0, 8, total_rotate);
-  digitalWrite(12, LOW);
 
+  endTime = micros();
+  Serial.print("run delay: ");
+  Serial.println(endTime - startTime);
+
+
+  startTime = micros();
   ch2 = getRemoteSignal(5);
   ch2Filter = LPFilter(ch2, ch2Filter, 1, 1);
   if (ch2Filter < 100) {
@@ -119,7 +130,9 @@ void loop() {
   else {
     steeringOutput = voltScaler(steeringOutput, -12, 0, -11.00, -9.2);
   }
+#if PROCESSING_ON
   sendProcessing();
+#endif
   if (abs(error) < 25) {
     steeringOutput = 0;
   }
@@ -127,6 +140,10 @@ void loop() {
   memcpy(total_rotate,     motor_2_front, 4 * sizeof(unsigned char)); // copy 4 floats from x to total[0]...total[3]
   memcpy(total_rotate + 4, motor_2_back, 4 * sizeof(unsigned char)); // copy 4 floats from y to total[4]...total[7]
   CAN.sendMsgBuf(0x01, 0, 8, total_rotate);
+
+  endTime = micros();
+  Serial.print("steer Delay: ");
+  Serial.println(endTime - startTime);
 
 #if PRINT_RECEIVER == 1
   Serial.print("ch1: ");
@@ -150,9 +167,9 @@ void loop() {
 
   prev_error = error;
 
-  endTime = millis();
-  Serial.println(' ');
-  Serial.println(startTime - endTime);
+  totalEndTime = micros();
+  Serial.print("TOTAL: ");
+  Serial.println(totalEndTime - totalStartTime);
 }
 //END LOOP
 
