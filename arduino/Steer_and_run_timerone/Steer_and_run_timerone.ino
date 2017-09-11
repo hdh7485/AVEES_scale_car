@@ -181,7 +181,6 @@ ISR(PCINT1_vect) {
     rcT[2] = rcTimes[2];
     rcT[3] = rcTimes[3];
   }
-  timerInterrupt();
 }
 
 void setup() {
@@ -207,6 +206,7 @@ void setup() {
 }
 
 void loop() {
+  timerInterrupt();
 }
 
 int getRemoteSignal(int pinNumber) {
