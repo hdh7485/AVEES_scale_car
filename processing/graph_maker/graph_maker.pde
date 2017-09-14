@@ -18,7 +18,7 @@ void setup() {
   size(600, 1000); 
   ///println(Serial.list());
 
-  port=new Serial(this, "COM7", 9600);
+  port=new Serial(this, "COM7", 115200);
 }
 
 void draw() {///아두이노에서 loop랑 같다고 생각하면 됨

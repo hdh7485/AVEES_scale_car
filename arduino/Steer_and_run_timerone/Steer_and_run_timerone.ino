@@ -23,9 +23,9 @@ float ch1Filter = 0.0f;
 float ch2Filter = 0.0f;
 double prev_error = 0.0f;
 double error = 0.0f;
-double kp = 0.0007;
+double kp = 0.0009;
 double ki = 0.0;
-double kd = 0.0045;
+double kd = 0.007;
 
 double steeringOutput;
 double steeringTarget;
@@ -66,10 +66,10 @@ void getAngleSignal();
 int getMotorSignal();
 int getRemoteSignal(int pinNumber);
 float voltScaler(float input, float inputMin, float inputMax, float outputMin, float outputMax);
-float LPFilter(float input, float pre_result);
+float LPFilter(float input, float pre_result, float tau, float ts);
 void sendProcessing();
 
-void timerInterrupt() {
+void controlRoutine() {
   digitalWrite(TEST_PIN, HIGH);
 
   getAngleSignal();
@@ -87,7 +87,7 @@ void timerInterrupt() {
   CAN.sendMsgBuf(0x01, 0, 8, total_rotate);
 
   ch2 = rcT[1];
-  ch2Filter = LPFilter(ch2, ch2Filter, 1, 1);
+  ch2Filter = LPFilter(ch2, ch2Filter, 1.5, 1);
   if (ch2Filter < 100) {
     steeringTarget = 0;
   }
@@ -99,26 +99,23 @@ void timerInterrupt() {
   
   if (steeringOutput > 0) {
     steeringOutput = voltScaler(steeringOutput, 0, 12, 3.1, 5);
+//    steeringOutput = voltScaler(steeringOutput, 0, 12, 3.0, 5);
   }
   else {
-    steeringOutput = voltScaler(steeringOutput, -12, 0, -11.00, -9.2);
+//    steeringOutput = voltScaler(steeringOutput, -12, 0, -11.00, -9.2);
+    steeringOutput = voltScaler(steeringOutput, -12, 0, -11.00, -9.0);
   }
 #if PROCESSING_ON == 1
   sendProcessing();
 #endif
-  if (abs(error) < 25) {
+  if (abs(error) < 30) {
     steeringOutput = 0;
   }
   float2Bytes(steeringOutput, motor_2_back);
   memcpy(total_rotate,     motor_2_front, 4 * sizeof(unsigned char)); // copy 4 floats from x to total[0]...total[3]
   memcpy(total_rotate + 4, motor_2_back, 4 * sizeof(unsigned char)); // copy 4 floats from y to total[4]...total[7]
   CAN.sendMsgBuf(0x01, 0, 8, total_rotate);
-
   
-
-//  Serial.print("steer Delay: ");
-//  Serial.println(endTime - startTime);
-
 #if PRINT_RECEIVER == 1
   Serial.print("ch1: ");
   Serial.print(ch1);
@@ -138,8 +135,8 @@ void timerInterrupt() {
   Serial.print("\tSteering_output: ");
   Serial.println(steeringOutput);
 #endif
-
   prev_error = error;
+  delayMicroseconds(8000);
   digitalWrite(TEST_PIN, LOW);
 }
 
@@ -189,7 +186,7 @@ void setup() {
   setup_rcTiming();
 
 //  Timer1.initialize(10000);
-//  Timer1.attachInterrupt(timerInterrupt); // blinkLED to run every 10ms.
+//  Timer1.attachInterrupt(controlRoutine); // blinkLED to run every 10ms.
 
   pinMode(12, OUTPUT);
   pinMode(TEST_PIN, OUTPUT);
@@ -206,7 +203,7 @@ void setup() {
 }
 
 void loop() {
-  timerInterrupt();
+  controlRoutine();
 }
 
 int getRemoteSignal(int pinNumber) {
@@ -287,7 +284,7 @@ void sendProcessing() {
   Serial.print(',');
   Serial.print(steeringCurrent);
   Serial.print(',');
-  Serial.print(steeringOutput * 10);
+  Serial.print(error * 10);
   Serial.print(';');
 }
 // END FILE
