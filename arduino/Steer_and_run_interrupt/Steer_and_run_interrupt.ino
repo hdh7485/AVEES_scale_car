@@ -5,12 +5,15 @@
 
 #define PRINT_STEER_DATA  0
 #define PRINT_RECEIVER    0
-#define PROCESSING_ON 0
+#define PROCESSING_ON     1
+
+#define TEST_PIN 7
 
 static   byte rcOld;        // Prev. states of inputs
 volatile unsigned long rcRises[4]; // times of prev. rising edges
 volatile unsigned long rcTimes[4]; // recent pulse lengths
-volatile unsigned int  rcChange=0; // Change-counter
+volatile unsigned int  rcChange = 0; // Change-counter
+unsigned long rcT[4]; // copy of recent pulse lengths
 
 float float_value = 0;
 float ch1;
@@ -51,7 +54,7 @@ unsigned char motor_2_quick_stop[6] = {0x14, 0x65, 0x00, 0x02, 0x00, 0x07};
 // v0.9b and v1.0 is default D10
 
 const int SPI_CS_PIN = 9;
-MCP_CAN CAN(SPI_CS_PIN);                                    
+MCP_CAN CAN(SPI_CS_PIN);
 // Set CS pin
 
 void float2Bytes(float float_variable, byte* bytes_temp);
@@ -63,12 +66,10 @@ float voltScaler(float input, float inputMin, float inputMax, float outputMin, f
 float LPFilter(float input, float pre_result);
 void sendProcessing();
 
-void timerInterrupt(){
-  static boolean output = HIGH;
-  digitalWrite(13, output);
-  output =! output;
-  getAngleSignal();
+void timerInterrupt() {
+  digitalWrite(TEST_PIN, HIGH);
 
+  getAngleSignal();
   ch1 = rcT[0];
   ch1Filter = LPFilter(ch1, ch1Filter, 1, 1);
   if (ch1Filter < 100) {
@@ -80,7 +81,7 @@ void timerInterrupt(){
   float2Bytes(rearVoltage, motor_1_back);
   memcpy(total_rotate,     motor_1_front, 4 * sizeof(unsigned char)); // copy 4 floats from x to total[0]...total[3]
   memcpy(total_rotate + 4, motor_1_back, 4 * sizeof(unsigned char)); // copy 4 floats from y to total[4]...total[7]
-  CAN.sendMsgBuf(0x01, 0, 8, total_rotate);
+//  CAN.sendMsgBuf(0x01, 0, 8, total_rotate);
 
   ch2 = rcT[1];
   ch2Filter = LPFilter(ch2, ch2Filter, 1, 1);
@@ -92,13 +93,14 @@ void timerInterrupt(){
   }
   error = (steeringTarget - (double)steeringCurrent);
   steeringOutput = error * kp + (error - prev_error) * kd;
+  
   if (steeringOutput > 0) {
     steeringOutput = voltScaler(steeringOutput, 0, 12, 3.1, 5);
   }
   else {
     steeringOutput = voltScaler(steeringOutput, -12, 0, -11.00, -9.2);
   }
-#if PROCESSING_ON
+#if PROCESSING_ON == 1
   sendProcessing();
 #endif
   if (abs(error) < 25) {
@@ -107,10 +109,12 @@ void timerInterrupt(){
   float2Bytes(steeringOutput, motor_2_back);
   memcpy(total_rotate,     motor_2_front, 4 * sizeof(unsigned char)); // copy 4 floats from x to total[0]...total[3]
   memcpy(total_rotate + 4, motor_2_back, 4 * sizeof(unsigned char)); // copy 4 floats from y to total[4]...total[7]
-  CAN.sendMsgBuf(0x01, 0, 8, total_rotate);
+//  CAN.sendMsgBuf(0x01, 0, 8, total_rotate);
 
-  Serial.print("steer Delay: ");
-  Serial.println(endTime - startTime);
+  
+
+//  Serial.print("steer Delay: ");
+//  Serial.println(endTime - startTime);
 
 #if PRINT_RECEIVER == 1
   Serial.print("ch1: ");
@@ -133,6 +137,7 @@ void timerInterrupt(){
 #endif
 
   prev_error = error;
+  digitalWrite(TEST_PIN, LOW);
 }
 
 // Be sure to call setup_rcTiming() from setup()
@@ -142,44 +147,44 @@ void setup_rcTiming() {
   pinMode(A1, INPUT);  // pin 15, A1, PC1, for pin-change interrupt
   pinMode(A2, INPUT);
   pinMode(A3, INPUT);
-  PCMSK1 |= 0x0F;       // Four-bit mask for four channels
-  PCIFR  |= 0x02;       // clear pin-change interrupts if any
-  PCICR  |= 0x02;       // enable pin-change interrupts
+//  PCMSK1 |= 0x0F;       // Four-bit mask for four channels
+//  PCIFR  |= 0x02;       // clear pin-change interrupts if any
+//  PCICR  |= 0x02;       // enable pin-change interrupts
 }
 // Define the service routine for PCI vector 1
-ISR(PCINT1_vect) {
-  byte rcNew = PINC & 15;   // Get low 4 bits, A0-A3
-  byte changes = rcNew^rcOld;   // Notice changed bits
-  byte channel = 0;
-  unsigned long now = micros(); // micros() is ok in int routine
-  while (changes) {
-    if ((changes & 1)) {  // Did current channel change?
-      if ((rcNew & (1<<channel))) { // Check rising edge
-        rcRises[channel] = now;     // Is rising edge
-      } else {              // Is falling edge
-        rcTimes[channel] = now-rcRises[channel];
-      }
-    }
-    changes >>= 1;      // shift out the done bit
-    ++channel;
-    ++rcChange;
-  }
-  rcOld = rcNew;        // Save new state
-}
+//ISR(PCINT1_vect) {
+//  byte rcNew = PINC & 15;   // Get low 4 bits, A0-A3
+//  byte changes = rcNew ^ rcOld; // Notice changed bits
+//  byte channel = 0;
+//  unsigned long now = micros(); // micros() is ok in int routine
+//  while (changes) {
+//    if ((changes & 1)) {  // Did current channel change?
+//      if ((rcNew & (1 << channel))) { // Check rising edge
+//        rcRises[channel] = now;     // Is rising edge
+//      } else {              // Is falling edge
+//        rcTimes[channel] = now - rcRises[channel];
+//      }
+//    }
+//    changes >>= 1;      // shift out the done bit
+//    ++channel;
+//    ++rcChange;
+//  }
+//  rcOld = rcNew;        // Save new state
+//}
 
 void setup() {
-  Serial.begin(9600);
+  Serial.begin(115200);
   Serial.println("Starting RC Timing Test");
   setup_rcTiming();
 
   MsTimer2::set(10, timerInterrupt);
   MsTimer2::start();
-  
-  pinMode(13, OUTPUT);
+
   pinMode(12, OUTPUT);
+  pinMode(TEST_PIN, OUTPUT);
   pinMode(6, INPUT);
   pinMode(5, INPUT);
-  
+
   int CANStart = CAN.begin(CAN_500KBPS);
   CAN.init_Mask(0, 0, 0x3ff);                         // there are 2 mask in mcp2515, you need to set both of them
   CAN.init_Mask(1, 0, 0x3ff);
@@ -188,25 +193,24 @@ void setup() {
 }
 
 void loop() {
-  unsigned long rcT[4]; // copy of recent pulse lengths
   unsigned int rcN;
-  if (rcChange) {
-
-    // Data is subject to races if interrupted, so off interrupts
-    cli();          // Disable interrupts
-    rcN = rcChange;
-    rcChange = 0;       // Zero the change counter
-    rcT[0] = rcTimes[0];
-    rcT[1] = rcTimes[1];
-    rcT[2] = rcTimes[2];
-    rcT[3] = rcTimes[3];
-    sei();          // reenable interrupts
-
-    Serial.print(rcT[0]);
-    Serial.print(' ');
-    Serial.println(rcT[1]);
-  }
-  sei();            // reenable interrupts
+//  if (rcChange) {
+//
+//    // Data is subject to races if interrupted, so off interrupts
+//    cli();          // Disable interrupts
+//    rcN = rcChange;
+//    rcChange = 0;       // Zero the change counter
+//    rcT[0] = rcTimes[0];
+//    rcT[1] = rcTimes[1];
+//    rcT[2] = rcTimes[2];
+//    rcT[3] = rcTimes[3];
+//    sei();          // reenable interrupts
+//
+//    Serial.print(rcT[0]);
+//    Serial.print(' ');
+//    Serial.println(rcT[1]);
+//  }
+//  sei();            // reenable interrupts
 }
 
 int getRemoteSignal(int pinNumber) {
