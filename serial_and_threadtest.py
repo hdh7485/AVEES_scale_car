@@ -15,17 +15,24 @@ def read():
         if int.from_bytes(data, byteorder='little') == 0x02:
             while True:
                 data = serial_port.read();
-                if int.from_bytes(data, byteorder='little') == 0x03: break
+                if int.from_bytes(data, byteorder='little') == 0x03: 
+                    input_data.append(data)
+                    break
                 input_data.append(data)
             print(input_data)
+
+def read_checksum():
+    while True:
+        data = serial_port.read()
+        print(data.hex())
 
 def main():
     checksum = 0
     serial_port.baudrate = 115200 
-    serial_port.port = 'COM14'
+    serial_port.port = 'COM12'
     serial_port.timeout = None
     serial_port.open()
-    t1 = threading.Thread(target=read, args=())
+    t1 = threading.Thread(target=read_checksum, args=())
     t1.start()
     while True:
         if checksum > 255 : checksum = 0
